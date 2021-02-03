@@ -1,5 +1,6 @@
 import momentTz from 'moment-timezone'
 
+import { Measure } from '../util'
 import { offsetWithTimeZone } from './timezones'
 
 /**
@@ -15,7 +16,9 @@ export class Schedule {
   private readonly exceptions = [] as ExceptionSchedule[]
 
   constructor(tzName: string) {
+    const m = new Measure('tz.zone')
     const zone = momentTz.tz.zone(tzName)
+    m.end()
     if (!zone) {
       throw new Error(`${tzName} is not a valid timezone name`)
     }
@@ -55,7 +58,9 @@ export class Schedule {
   }
 
   contains(inDate: Date): boolean {
+    const m1 = new Measure('offsetWithTimeZone')
     const offset = offsetWithTimeZone(this.zone, inDate)
+    m1.end()
     const scheduleZoneDate = new Date(inDate.getTime() + offset)
     const exception = this.exceptions.find(exception =>
       isSameDay(scheduleZoneDate, exception.date)

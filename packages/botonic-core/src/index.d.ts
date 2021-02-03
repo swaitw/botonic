@@ -209,7 +209,8 @@ export declare function humanHandOff(
 ): Promise<void>
 
 export declare function getOpenQueues(
-  session: Session
+  session: Session,
+  timeoutMs?: number
 ): Promise<{ queues: string[] }>
 
 export declare function storeCaseRating(

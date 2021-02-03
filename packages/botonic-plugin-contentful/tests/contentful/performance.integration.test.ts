@@ -1,20 +1,19 @@
-import { KeywordsOptions, MatchType, Normalizer, Search, SPANISH } from '../../src'
-import {
-  Measure,
-  Profiler
-} from '../../src/util/profiler'
+import { CommonFields, ContentType, SPANISH } from '../../src'
+import { Measure, Profiler } from '../../src/util/profiler'
 import { testContentful } from './contentful.helper'
 import { TEST_POST_FAQ1_ID } from './contents/text.test'
 
 test('INTEGRATION TEST: performance', async () => {
   Profiler.enable()
-  const contentful = testContentful({ disableCache: true })
+  const contentful = testContentful({
+    disableCache: true,
+    spaceId: '5wh7etpd1y84',
+    environment: 'master',
+    accessToken:
+      '655008dda10b1c09948e7ce3688cdbea60f324734622c850e4905524cd1cafa7',
+  })
   const t = await contentful.text(TEST_POST_FAQ1_ID, { locale: SPANISH })
   console.log(t.text)
-  const normalizer = new Normalizer()
-  const sut = new Search(contentful, normalizer, {
-    es: new KeywordsOptions(1),
-  })
 
   for (let i = 0; i < 1000; i++) {
     const searchM = new Measure('nothing')
@@ -22,14 +21,14 @@ test('INTEGRATION TEST: performance', async () => {
   }
 
   const loopM = new Measure('LOOP')
-  for (let i = 0; i < 10; i++) {
-    const searchM = new Measure('searchByKeywords')
-    const res = await sut.searchByKeywords(
-      'mi pedido no encuentro',
-      MatchType.ALL_WORDS_IN_KEYWORDS_MIXED_UP,
+  for (let i = 0; i < 300; i++) {
+    const searchM = new Measure('total')
+    const res = await contentful.topContents(
+      ContentType.QUEUE,
       {
         locale: 'es',
-      }
+      },
+      (cf: CommonFields) => cf.partitions && cf.partitions.includes('ES')
     )
     console.log(res.length)
     console.log('hola')
@@ -41,4 +40,4 @@ test('INTEGRATION TEST: performance', async () => {
   loopM.end()
   console.log(Profiler.getSummaryAll())
   Profiler.disable()
-})
+}, 60000)

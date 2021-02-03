@@ -2,9 +2,11 @@ import axios from 'axios'
 
 const HUBTYPE_API_URL = 'https://api.hubtype.com'
 
-export async function getOpenQueues(session) {
+export async function getOpenQueues(session, timeout = 10000) {
+  //be aware of https://github.com/axios/axios/issues/1543
   const baseUrl = session._hubtype_api || HUBTYPE_API_URL
   const endpointUrl = `${baseUrl}/v1/queues/get_open_queues/`
+  console.log("timeout queues!!!" + timeout)
   const resp = await axios({
     headers: {
       Authorization: `Bearer ${session._access_token}`,
@@ -12,6 +14,7 @@ export async function getOpenQueues(session) {
     method: 'post',
     url: endpointUrl,
     data: { bot_id: session.bot.id },
+    timeout: timeout,
   })
   return resp.data
 }
