@@ -94,7 +94,7 @@ export type ProviderType =
 export interface SessionUser {
   id: string
   // login
-  username?: string
+  username?: stringpusher
   // person name
   name?: string
   // whatsapp, telegram,...
@@ -155,7 +155,11 @@ export interface Route {
   type?: StringMatcher
 }
 
-export type RouteRequest = { input: Input; session: Session }
+export type RouteRequest = {
+  input: Input
+  session: Session
+  lastRoutePath: string | undefined
+}
 export type Routes<R = Route> = R[] | ((_: RouteRequest) => R[])
 
 // Desk
@@ -215,7 +219,8 @@ export declare function getOpenQueues(
 
 export declare function storeCaseRating(
   session: Session,
-  rating: number
+  rating: number,
+  timeoutMs?: number
 ): Promise<{ status: string }>
 
 export declare function getAvailableAgentsByQueue(
@@ -298,7 +303,7 @@ export class CoreBot {
 
   constructor(options: BotOptions)
   getString(stringID: string, session: Session): string
-  input(request: BotRequest): BotResponse
+  input(request: BotRequest): Promise<BotResponse>
   setLocale(locale: string, session: Session): void
 }
 

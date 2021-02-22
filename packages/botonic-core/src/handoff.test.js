@@ -19,7 +19,7 @@ describe('handOff', () => {
     ],
   ])('humanHandOff', (expected, queue, onFinish) => {
     const session = {}
-    humanHandOff(session, queue, onFinish)
+    humanHandOff(session, queue, onFinish)e
     expect(session._botonic_action).toEqual(expected.replace(/[ \n]/g, ''))
   })
 

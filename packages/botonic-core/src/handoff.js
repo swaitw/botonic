@@ -6,7 +6,6 @@ export async function getOpenQueues(session, timeout = 10000) {
   //be aware of https://github.com/axios/axios/issues/1543
   const baseUrl = session._hubtype_api || HUBTYPE_API_URL
   const endpointUrl = `${baseUrl}/v1/queues/get_open_queues/`
-  console.log("timeout queues!!!" + timeout)
   const resp = await axios({
     headers: {
       Authorization: `Bearer ${session._access_token}`,
@@ -133,7 +132,7 @@ async function _humanHandOff(
   session._botonic_action = `create_case:${JSON.stringify(params)}`
 }
 
-export async function storeCaseRating(session, rating) {
+export async function storeCaseRating(session, rating, timeoutMs = undefined) {
   const baseUrl = session._hubtype_api || HUBTYPE_API_URL
   const chatId = session.user.id
   const resp = await axios({

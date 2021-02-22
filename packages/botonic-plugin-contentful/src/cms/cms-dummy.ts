@@ -25,7 +25,7 @@ import { Context, DEFAULT_CONTEXT } from './context'
  * Useful for mocking CMS, as ts-mockito does not allow mocking interfaces
  */
 export class DummyCMS implements CMS {
-  static IMG = '../assets/img_home_bg.png'
+  static readonly IMG = '../assets/img_home_bg.png'
   /**
    *
    * @param buttonCallbacks models which contain buttons will return one per each specified callback

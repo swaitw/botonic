@@ -48,6 +48,13 @@ export class Profiler {
     return Profiler.performanceMeasurer.stringSummaryAll()
   }
 
+  /**
+   * get a pretty summary 1 profiling
+   */
+  static getSummary(name: string): string {
+    return Profiler.performanceMeasurer.stringSummary(name)
+  }
+
   static getCallCount(name: string): number {
     return Profiler.performanceMeasurer.callCount(name)
   }
@@ -99,11 +106,11 @@ export class Profiler {
 export class Measure {
   static lastUuid = 0
   private readonly uuid
-  private readonly name
+  public readonly name
 
   constructor(name: string) {
     this.name = (name || '<NO_NAME>').substr(0, 40)
-    this.uuid = this.name + Measure.lastUuid++
+    this.uuid = this.name + String(Measure.lastUuid++)
     Profiler.performanceMeasurer.start(this.uuid)
   }
 

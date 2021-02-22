@@ -14,14 +14,14 @@ test('TEST: Measure does not mix same names', async () => {
   Profiler.disable()
 })
 
-test('TEST: Measure.end returns its argument', async () => {
+test('TEST: Measure.end returns its argument', () => {
   Profiler.enable()
   const m1 = new Measure('hola')
   expect(m1.end({ 2: 3 })).toEqual({ 2: 3 })
   Profiler.disable()
 })
 
-test('TEST: Measure without name', async () => {
+test('TEST: Measure without name', () => {
   Profiler.enable()
   const m1 = new Measure('')
   m1.end()
@@ -33,7 +33,7 @@ test('TEST: Measure without name', async () => {
   Profiler.disable()
 })
 
-test('TEST: long name', async () => {
+test('TEST: long name', () => {
   Profiler.enable()
   const m1 = new Measure('hola')
   m1.end()
