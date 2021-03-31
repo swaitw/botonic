@@ -47,11 +47,43 @@ export class ManageContentful implements ManageCms {
     return this.environment
   }
 
+  async deleteEntry(id: string): Promise<void> {
+    const environment = await this.getEnvironment()
+    const getEntry = async () => {
+      try {
+        return await environment.getEntry(id)
+      } catch (e) {
+        console.log(e)
+        return undefined
+      }
+    }
+    const oldEntry = await getEntry()
+    console.log('oldEntry', oldEntry)
+    if (oldEntry) {
+      await oldEntry.unpublish()
+      await oldEntry.archive()
+    }
+  }
+
+  async createEntry(contentId: ContentId) {
+    console.log('createEntry')
+    const environment = await this.getEnvironment()
+    const newEntry = await environment.createEntryWithId(
+      contentId.model,
+      contentId.id,
+      {
+        fields: {},
+      }
+    )
+    return newEntry
+  }
+
   async updateFields(
     context: ManageContext,
     contentId: ContentId,
     fields: { [contentFieldType: string]: any }
   ): Promise<{ [contentFieldType: string]: any }> {
+    console.log('updateFields')
     const environment = await this.getEnvironment()
     const getEntry = async () => {
       try {
@@ -61,6 +93,7 @@ export class ManageContentful implements ManageCms {
       }
     }
     const oldEntry = await getEntry()
+    console.log('oldEntry', oldEntry)
     let needUpdate = false
     for (const key of Object.keys(fields)) {
       if (!isOfType(key, ContentFieldType)) {
