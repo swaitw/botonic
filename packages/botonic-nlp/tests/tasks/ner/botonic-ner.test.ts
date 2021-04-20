@@ -4,31 +4,19 @@ import * as constantsHelper from '../../helpers/constants-helper'
 import * as toolsHelper from '../../helpers/tools-helper'
 
 describe('Botonic NER', () => {
-  test('Loading model', async () => {
-    const sut = await BotonicNer.load(
-      constantsHelper.NER_MODEL_DIR_PATH,
-      toolsHelper.preprocessor
-    )
-    expect(sut.locale).toEqual(constantsHelper.LOCALE)
-    expect(sut.maxLength).toEqual(constantsHelper.MAX_SEQUENCE_LENGTH)
-    expect(sut.entities).toEqual(
-      [NEUTRAL_ENTITY].concat(constantsHelper.ENTITIES)
-    )
-    expect(sut.vocabulary).toEqual(constantsHelper.VOCABULARY)
-  })
+  const { trainSet, testSet } = toolsHelper.dataset.split()
+  const vocabulary = trainSet.extractVocabulary(toolsHelper.preprocessor)
+  const sut = new BotonicNer(
+    constantsHelper.LOCALE,
+    constantsHelper.MAX_SEQUENCE_LENGTH,
+    constantsHelper.ENTITIES,
+    vocabulary,
+    toolsHelper.preprocessor
+  )
+  sut.compile()
 
   test('Evaluate model', async () => {
     // arrange
-    const { trainSet, testSet } = toolsHelper.dataset.split()
-    const vocabulary = trainSet.extractVocabulary(toolsHelper.preprocessor)
-    const sut = new BotonicNer(
-      constantsHelper.LOCALE,
-      constantsHelper.MAX_SEQUENCE_LENGTH,
-      constantsHelper.ENTITIES,
-      vocabulary,
-      toolsHelper.preprocessor
-    )
-    sut.compile()
     await sut.createModel('biLstm', toolsHelper.wordEmbeddingStorage)
     await sut.train(trainSet, 4, 8)
 
@@ -42,16 +30,6 @@ describe('Botonic NER', () => {
 
   test('Recognize entities', async () => {
     // arrange
-    const { trainSet } = toolsHelper.dataset.split()
-    const vocabulary = trainSet.extractVocabulary(toolsHelper.preprocessor)
-    const sut = new BotonicNer(
-      constantsHelper.LOCALE,
-      constantsHelper.MAX_SEQUENCE_LENGTH,
-      constantsHelper.ENTITIES,
-      vocabulary,
-      toolsHelper.preprocessor
-    )
-    sut.compile()
     await sut.createModel('biLstm', toolsHelper.wordEmbeddingStorage)
     await sut.train(trainSet, 4, 8)
 
@@ -60,5 +38,18 @@ describe('Botonic NER', () => {
 
     // assert
     expect(entities.length).toEqual(3)
+  })
+
+  test('Loading model', async () => {
+    const sut = await BotonicNer.load(
+      constantsHelper.NER_MODEL_DIR_PATH,
+      toolsHelper.preprocessor
+    )
+    expect(sut.locale).toEqual(constantsHelper.LOCALE)
+    expect(sut.maxLength).toEqual(constantsHelper.MAX_SEQUENCE_LENGTH)
+    expect(sut.entities).toEqual(
+      [NEUTRAL_ENTITY].concat(constantsHelper.ENTITIES)
+    )
+    expect(sut.vocabulary).toEqual(constantsHelper.VOCABULARY)
   })
 })
