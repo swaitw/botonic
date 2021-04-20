@@ -26,9 +26,8 @@ export class Processor {
 
   // Generates the Input data and the unmasked sequence.
   generateInput(text: string): { sequence: string[]; input: InputData } {
-    const sequence = this.preprocessor.pad(
-      this.processText(text),
-      PADDING_TOKEN
+    const sequence = this.preprocessor.truncate(
+      this.preprocessor.pad(this.processText(text), PADDING_TOKEN)
     )
     const input = tensor([this.processTokens(sequence)]) as Tensor2D
     return { sequence, input }
@@ -89,13 +88,17 @@ export class Processor {
 
   private processTokens(sequence: string[]): number[] {
     return this.tokenCodifier.encode(
-      this.preprocessor.pad(this.maskUnknownTokens(sequence), PADDING_TOKEN)
+      this.preprocessor.truncate(
+        this.preprocessor.pad(this.maskUnknownTokens(sequence), PADDING_TOKEN)
+      )
     )
   }
 
   private processEntities(sequence: string[]): number[][] {
     return this.entityCodifier.encode(
-      this.preprocessor.pad(sequence, NEUTRAL_ENTITY)
+      this.preprocessor.truncate(
+        this.preprocessor.pad(sequence, NEUTRAL_ENTITY)
+      )
     )
   }
 }
