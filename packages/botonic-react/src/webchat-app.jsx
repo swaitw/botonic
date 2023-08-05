@@ -141,7 +141,7 @@ export class WebchatApp {
   }
 
   onServiceEvent(event) {
-    if (event.action === 'connectionChange') {
+    if (event.action === 'connection_change') {
       this.onConnectionChange && this.onConnectionChange(this, event.online)
       this.webchatRef.current.setOnline(event.online)
     } else if (event.action === 'update_message_info')
@@ -243,7 +243,7 @@ export class WebchatApp {
   }
 
   // eslint-disable-next-line complexity
-  getComponent(optionsAtRuntime = {}) {
+  getComponent(host, optionsAtRuntime = {}) {
     let {
       theme = {},
       persistentMenu,
@@ -265,6 +265,7 @@ export class WebchatApp {
       appId,
       visibility,
       server,
+      hostId,
       ...webchatOptions
     } = optionsAtRuntime
     theme = merge(this.theme, theme)
@@ -287,6 +288,8 @@ export class WebchatApp {
     this.onConnectionChange = onConnectionChange || this.onConnectionChange
     this.visibility = visibility || this.visibility
     this.appId = appId || this.appId
+    this.hostId = hostId || this.hostId
+    this.createRootElement(host)
     return (
       <Webchat
         {...webchatOptions}
@@ -342,11 +345,10 @@ export class WebchatApp {
 
   async render(dest, optionsAtRuntime = {}) {
     onDOMLoaded(async () => {
-      this.createRootElement(dest)
       const isVisible = await this.resolveWebchatVisibility(optionsAtRuntime)
       if (isVisible)
         render(
-          this.getComponent(optionsAtRuntime),
+          this.getComponent(dest, optionsAtRuntime),
           this.getReactMountNode(dest)
         )
     })

@@ -1,10 +1,8 @@
+import { INPUT, isMobile, params2queryString } from '@botonic/core'
 import {
-  INPUT,
-  isMobile,
   MessageEventAck,
   MessageEventFrom,
-  params2queryString,
-} from '@botonic/core'
+} from '@botonic/core/src/models/events/message'
 import { motion } from 'framer-motion'
 import merge from 'lodash.merge'
 import React, {
@@ -44,12 +42,6 @@ import { scrollToBottom } from '../../util/dom'
 import { isDev, resolveImage } from '../../util/environment'
 import { ConditionalWrapper } from '../../util/react'
 import { deserializeRegex, stringifyWithRegexs } from '../../util/regexs'
-import {
-  _getThemeProperty,
-  getServerErrorMessage,
-  initSession,
-  shouldKeepSessionOnReload,
-} from '../../util/webchat'
 import { Attachment } from '../../webchat/components/attachment'
 import {
   EmojiPicker,
@@ -63,12 +55,6 @@ import { SendButton } from '../../webchat/components/send-button'
 import { TypingIndicator } from '../../webchat/components/typing-indicator'
 import { DeviceAdapter } from '../../webchat/devices/device-adapter'
 import { StyledWebchatHeader } from '../../webchat/header'
-import {
-  useComponentWillMount,
-  usePrevious,
-  useTyping,
-  useWebchat,
-} from '../../webchat/hooks'
 import { WebchatMessageList } from '../../webchat/message-list'
 import { WebchatReplies } from '../../webchat/replies'
 import { useStorageState } from '../../webchat/use-storage-state-hook'
@@ -76,6 +62,18 @@ import { WebviewContainer } from '../../webchat/webview'
 import { Audio, Document, Image, Video } from '../components'
 import { Text } from '../components/text'
 import { msgToBotonic } from '../msg-to-botonic'
+import {
+  _getThemeProperty,
+  getServerErrorMessage,
+  initUser,
+  shouldKeepSessionOnReload,
+} from '../util/webchat'
+import {
+  useComponentWillMount,
+  usePrevious,
+  useTyping,
+  useWebchat,
+} from '../webchat/hooks'
 export const getParsedAction = botonicAction => {
   const splittedAction = botonicAction.split('create_case:')
   if (splittedAction.length <= 1) return undefined
@@ -183,7 +181,6 @@ export const Webchat = forwardRef((props, ref) => {
     updateLatestInput,
     updateTyping,
     updateWebview,
-    updateSession,
     updateLastRoutePath,
     updateHandoff,
     updateTheme,
@@ -200,14 +197,23 @@ export const Webchat = forwardRef((props, ref) => {
     updateLastMessageDate,
     setCurrentAttachment,
     updateJwt,
+    updateUser,
+    updateSession,
+    updateBotState,
     // eslint-disable-next-line react-hooks/rules-of-hooks
   } = props.webchatHooks || useWebchat()
 
   const firstUpdate = useRef(true)
-  const isOnline = () => webchatState.online
+  const isOnline = () => webchatState.isWebchatOnline
   const currentDateString = () => new Date().toISOString()
   const theme = merge(webchatState.theme, props.theme)
-  const { initialSession, initialDevSettings, onStateChange } = props
+  const {
+    initialUser,
+    initialSession,
+    initialBotState,
+    initialDevSettings,
+    onStateChange,
+  } = props
   const getThemeProperty = _getThemeProperty(theme)
 
   const storage = props.storage === undefined ? localStorage : props.storage
@@ -229,12 +235,13 @@ export const Webchat = forwardRef((props, ref) => {
         JSON.parse(
           stringifyWithRegexs({
             messages: webchatState.messagesJSON,
-            session: webchatState.session,
-            lastRoutePath: webchatState.lastRoutePath,
             devSettings: webchatState.devSettings,
             lastMessageUpdate: webchatState.lastMessageUpdate,
             themeUpdates: webchatState.themeUpdates,
             jwt: webchatState.jwt,
+            user: webchatState.user,
+            session: webchatState.session,
+            botState: webchatState.botState,
           })
         )
       )
@@ -260,17 +267,12 @@ export const Webchat = forwardRef((props, ref) => {
   }, [webchatState.currentAttachment])
 
   const sendUserInput = async input => {
-    input = {
-      ...input,
-      ack: MessageEventAck.DRAFT,
-      from: MessageEventFrom.USER,
-    }
     props.onUserInput &&
       props.onUserInput({
-        user: webchatState.session.user,
+        user: webchatState.user,
         input,
         session: webchatState.session,
-        lastRoutePath: webchatState.lastRoutePath,
+        botState: webchatState.botState,
       })
   }
 
@@ -304,16 +306,18 @@ export const Webchat = forwardRef((props, ref) => {
 
   // Load initial state from storage
   useEffect(() => {
-    let {
+    const {
       messages,
-      session,
       lastRoutePath,
       devSettings,
       lastMessageUpdate,
       themeUpdates,
+      user,
+      session,
+      botState,
     } = botonicState || {}
-    session = initSession(session)
-    updateSession(session)
+    updateUser(merge(initialUser, initUser(user)))
+
     if (shouldKeepSessionOnReload({ initialDevSettings, devSettings })) {
       if (messages) {
         messages.forEach(m => {
@@ -326,12 +330,15 @@ export const Webchat = forwardRef((props, ref) => {
           if (newComponent) addMessageComponent(newComponent)
         })
       }
-      if (initialSession) updateSession(merge(initialSession, session))
-      if (lastRoutePath) updateLastRoutePath(lastRoutePath)
+      if (initialSession) {
+        updateSession(merge(initialSession, session))
+      }
+      if (initialBotState) {
+        updateBotState(merge(initialBotState, botState))
+      }
     } else {
-      session.__retries = 0
-      session.is_first_interaction = true
       updateSession(merge(initialSession, session))
+      updateBotState(merge(initialBotState, botState))
     }
     if (devSettings) updateDevSettings(devSettings)
     else if (initialDevSettings) updateDevSettings(initialDevSettings)
@@ -348,21 +355,26 @@ export const Webchat = forwardRef((props, ref) => {
   }, [webchatState.isWebchatOpen])
 
   useEffect(() => {
-    if (onStateChange && typeof onStateChange === 'function') {
+    if (
+      onStateChange &&
+      typeof onStateChange === 'function' &&
+      webchatState.user.id
+    ) {
       onStateChange({ ...webchatState, updateJwt })
     }
     saveWebchatState(webchatState)
   }, [
     webchatState.messagesJSON,
-    webchatState.session,
-    webchatState.lastRoutePath,
     webchatState.devSettings,
     webchatState.lastMessageUpdate,
     webchatState.jwt,
+    webchatState.user,
+    webchatState.session,
+    webchatState.botState,
   ])
 
   useAsyncEffect(async () => {
-    if (!webchatState.online) {
+    if (!webchatState.isWebchatOnline) {
       setError({
         message: getServerErrorMessage(props.server),
       })
@@ -371,7 +383,7 @@ export const Webchat = forwardRef((props, ref) => {
         setError(undefined)
       }
     }
-  }, [webchatState.online])
+  }, [webchatState.isWebchatOnline])
 
   useTyping({ webchatState, updateTyping, updateMessage, host })
 
@@ -513,24 +525,16 @@ export const Webchat = forwardRef((props, ref) => {
 
   const messageComponentFromInput = input => {
     let messageComponent = null
+    let props = { ...input }
     if (isText(input)) {
-      messageComponent = (
-        <Text id={input.id} payload={input.payload} from={SENDERS.user}>
-          {input.text}
-        </Text>
-      )
+      messageComponent = <Text {...props}>{input.text}</Text>
     } else if (isMedia(input)) {
       const temporaryDisplayUrl = URL.createObjectURL(input.src)
-      const mediaProps = {
-        id: input.id,
-        from: SENDERS.user,
-        src: temporaryDisplayUrl,
-      }
-      if (isImage(input)) messageComponent = <Image {...mediaProps} />
-      else if (isAudio(input)) messageComponent = <Audio {...mediaProps} />
-      else if (isVideo(input)) messageComponent = <Video {...mediaProps} />
-      else if (isDocument(input))
-        messageComponent = <Document {...mediaProps} />
+      props = { ...props, src: temporaryDisplayUrl }
+      if (isImage(input)) messageComponent = <Image {...props} />
+      else if (isAudio(input)) messageComponent = <Audio {...props} />
+      else if (isVideo(input)) messageComponent = <Video {...props} />
+      else if (isDocument(input)) messageComponent = <Document {...props} />
     }
     return messageComponent
   }
@@ -540,6 +544,14 @@ export const Webchat = forwardRef((props, ref) => {
     if (isText(input) && (!input.text || !input.text.trim())) return // in case trim() doesn't work in a browser we can use !/\S/.test(input.text)
     if (isText(input) && checkBlockInput(input)) return
     if (!input.id) input.id = uuidv4()
+    const { idFromChannel, channel } = webchatState.user
+    input = {
+      idFromChannel,
+      channel,
+      ack: MessageEventAck.DRAFT,
+      from: MessageEventFrom.USER,
+      ...input,
+    }
     const messageComponent = messageComponentFromInput(input)
     if (messageComponent) addMessageComponent(messageComponent)
     if (isMedia(input)) input.src = await readDataURL(input.src)
@@ -555,27 +567,28 @@ export const Webchat = forwardRef((props, ref) => {
   https://stackoverflow.com/questions/37949981/call-child-method-from-parent
   */
 
-  const updateSessionWithUser = userToUpdate =>
-    updateSession(merge(webchatState.session, { user: userToUpdate }))
+  const mergeAndUpdateUser = userToUpdate =>
+    updateUser(merge(webchatState.user, userToUpdate))
 
   useImperativeHandle(ref, () => ({
     addBotResponse: ({ response, session, lastRoutePath }) => {
       updateTyping(false)
       if (Array.isArray(response)) response.map(r => addMessageComponent(r))
       else if (response) addMessageComponent(response)
-      if (session) {
-        updateSession(merge(session, { user: webchatState.session.user }))
-        const action = session._botonic_action || ''
-        const handoff = action.startsWith('create_case')
-        if (handoff && isDev) addMessageComponent(<Handoff />)
-        updateHandoff(handoff)
-      }
-      if (lastRoutePath) updateLastRoutePath(lastRoutePath)
       updateLastMessageDate(currentDateString())
     },
     setTyping: typing => updateTyping(typing),
     addUserMessage: message => sendInput(message),
-    updateUser: updateSessionWithUser,
+    updateUser: mergeAndUpdateUser,
+    updateBotState: botState => {
+      // TODO: Review handoff logic for 1.0
+      // const action = botState.botonicAction || ''
+      // // const isHandoff = action.startsWith('create_case')
+      if (botState.isHandoff && isDev) addMessageComponent(<Handoff />)
+      updateBotState(botState)
+      // updateHandoff(botState.isHandoff)
+    },
+    updateSession: updateSession,
     openWebchat: () => toggleWebchat(true),
     closeWebchat: () => toggleWebchat(false),
     toggleWebchat: () => toggleWebchat(!webchatState.isWebchatOpen),
@@ -608,22 +621,26 @@ export const Webchat = forwardRef((props, ref) => {
   }))
 
   const resolveCase = () => {
-    updateHandoff(false)
-    updateSession({ ...webchatState.session, _botonic_action: null })
+    // updateHandoff(false)
+    updateBotState({
+      ...webchatState.botState,
+      isHandoff: false,
+      botonicAction: null,
+    })
   }
 
-  const prevSession = usePrevious(webchatState.session)
+  const previousBotState = usePrevious(webchatState.botState)
   useEffect(() => {
     // Resume conversation after handoff
     if (
-      prevSession &&
-      prevSession._botonic_action &&
-      !webchatState.session._botonic_action
+      previousBotState &&
+      previousBotState.botonicAction &&
+      !webchatState.botState.botonicAction
     ) {
-      const action = getParsedAction(prevSession._botonic_action)
+      const action = getParsedAction(previousBotState.botonicAction)
       if (action && action.on_finish) sendPayload(action.on_finish)
     }
-  }, [webchatState.session._botonic_action])
+  }, [webchatState.botState.botonicAction])
 
   const sendText = async (text, payload) => {
     if (!text) return
@@ -663,8 +680,8 @@ export const Webchat = forwardRef((props, ref) => {
   }
 
   const webviewRequestContext = {
-    getString: stringId => props.getString(stringId, webchatState.session),
-    setLocale: locale => props.getString(locale, webchatState.session),
+    getString: stringId => props.getString(stringId, webchatState.botState),
+    setLocale: locale => props.getString(locale, webchatState.botState),
     session: webchatState.session || {},
     params: webchatState.webviewParams || {},
     closeWebview: closeWebview,
@@ -924,7 +941,7 @@ export const Webchat = forwardRef((props, ref) => {
         updateMessage,
         updateReplies,
         updateLatestInput,
-        updateUser: updateSessionWithUser,
+        updateUser: mergeAndUpdateUser,
         updateWebchatDevSettings: updateWebchatDevSettings,
       }}
     >

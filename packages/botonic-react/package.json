@@ -1,6 +1,6 @@
 {
   "name": "@botonic/react",
-  "version": "1.0.0-dev.1",
+  "version": "1.0.0-dev.2",
   "license": "MIT",
   "description": "Build Chatbots using React",
   "main": "src/index.js",
@@ -28,13 +28,13 @@
     "README.md"
   ],
   "dependencies": {
-    "@botonic/core": "dev",
-    "axios": "^0.21.3",
+    "@botonic/core": "^1.0.0-dev.2",
+    "axios": "^0.24.0",
     "emoji-picker-react": "^3.2.3",
     "framer-motion": "^3.1.1",
     "he": "^1.2.0",
     "lodash.merge": "^4.6.2",
-    "markdown-it": "^12.0.6",
+    "markdown-it": "^12.3.2",
     "qrcode.react": "^1.0.1",
     "react": "^16.14.0",
     "react-dom": "^16.14.0",
@@ -47,7 +47,7 @@
     "reconnecting-websocket": "^4.4.0",
     "simplebar-react": "^2.3.3",
     "styled-components": "^5.3.0",
-    "ua-parser-js": "^0.7.21",
+    "ua-parser-js": "^1.0.2",
     "unescape": "^1.0.1",
     "use-async-effect": "^2.2.3",
     "uuid": "^8.3.2"
@@ -62,7 +62,7 @@
     "@babel/preset-react": "^7.13.13",
     "@testing-library/react": "^12.0.0",
     "@testing-library/react-hooks": "^7.0.0",
-    "@types/react": "17.0.27",
+    "@types/react": "17.0.34",
     "babel-plugin-add-module-exports": "^1.0.2",
     "identity-obj-proxy": "^3.0.0",
     "react-test-renderer": "^16.14.0"

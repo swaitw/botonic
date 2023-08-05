@@ -1,7 +1,7 @@
 import * as aws from '@pulumi/aws'
 import * as pulumi from '@pulumi/pulumi'
 
-import { AWSComponentResource, AWSResourceOptions } from '.'
+import { AWSComponentResource, AWSResourceOptions } from './aws-resource'
 
 interface SQSLambdaPolicy {
   name: string
@@ -66,7 +66,7 @@ export class SQSLambdaFunction extends AWSComponentResource<SQSLambdaFunctionArg
         }),
         handler,
         role: role.arn,
-        // timeout: 6,
+        timeout: 4, // Give enough time to botExecutor
         ...environmentVariables,
       },
       opts

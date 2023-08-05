@@ -1,14 +1,11 @@
-import { ulid } from 'ulid'
-
 import { Inspector } from './debug'
 import { getString } from './i18n'
 import {
   BotonicEvent,
   BotRequest,
   BotResponse,
+  BotState,
   Locales,
-  MessageEventAck,
-  MessageEventFrom,
   Route,
   Routes,
   Session,
@@ -81,46 +78,32 @@ export class CoreBot {
           )
   }
 
-  getString(id: string, session: Session): string {
-    // @ts-ignore
-    return getString(this.locales, session.__locale, id)
+  getString(id: string, botState: BotState): string {
+    if (!botState.locale) {
+      console.error('Locale is not defined')
+      return ''
+    }
+    return getString(this.locales, botState.locale, id)
   }
 
-  setLocale(locale: string, session: Session): void {
-    session.__locale = locale
+  setLocale(locale: string, botState: BotState): void {
+    botState.locale = locale
   }
 
   async input({
     input,
     session,
-    lastRoutePath,
+    botState,
     dataProvider,
   }: BotRequest): Promise<BotResponse> {
-    session = session || {}
-    if (!session.__locale) session.__locale = 'en'
-
-    const parsedUserEvent = this.botonicOutputParser.parseFromUserInput(input)
-    const userId = session.user.id
-    if (dataProvider) {
-      // TODO: Next iterations. Review cycle of commited events to DB when messages change their ACK
-      // @ts-ignore
-      const userEvent = await dataProvider.saveEvent({
-        ...parsedUserEvent,
-        userId,
-        eventId: ulid(),
-        createdAt: new Date().toISOString(),
-        from: MessageEventFrom.USER,
-        ack: MessageEventAck.RECEIVED,
-      })
-    }
-
+    if (!botState?.locale) botState.locale = 'en'
     if (this.plugins) {
       await runPlugins(
         this.plugins,
         'pre',
         input,
         session,
-        lastRoutePath,
+        botState,
         undefined,
         undefined,
         dataProvider
@@ -133,7 +116,7 @@ export class CoreBot {
           ...(await getComputedRoutes(this.routes, {
             input,
             session,
-            lastRoutePath,
+            botState,
           })),
           ...this.defaultRoutes,
         ],
@@ -144,18 +127,19 @@ export class CoreBot {
     const output = (this.router as Router).processInput(
       input,
       session,
-      lastRoutePath
+      botState
     )
+
     const request = {
-      getString: stringId => this.getString(stringId, session),
-      setLocale: locale => this.setLocale(locale, session),
+      getString: stringId => this.getString(stringId, botState),
+      setLocale: locale => this.setLocale(locale, botState),
       session: session || {},
       params: output.params || {},
       input: input,
       plugins: this.plugins,
       defaultTyping: this.defaultTyping,
       defaultDelay: this.defaultDelay,
-      lastRoutePath,
+      botState,
       dataProvider,
     }
 
@@ -163,50 +147,35 @@ export class CoreBot {
       request,
       actions: [output.fallbackAction, output.action, output.emptyAction],
     })
-    let messageEvents: Partial<BotonicEvent>[] = []
-    try {
-      messageEvents = this.botonicOutputParser.xmlToMessageEvents(response)
-    } catch (e) {
-      console.error(e)
-    }
 
-    lastRoutePath = output.lastRoutePath
+    const messageEvents: Partial<BotonicEvent>[] = this.botonicOutputParser.xmlToMessageEvents(
+      response
+    )
+
+    botState.lastRoutePath = output.botState.lastRoutePath // not needed if updated below
+
     if (this.plugins) {
       await runPlugins(
         this.plugins,
         'post',
         input,
-        session,
-        lastRoutePath,
+        session, // passing output.session instead
+        botState, // passing output.botState instead
         response,
         messageEvents,
         dataProvider
       )
     }
 
-    if (dataProvider) {
-      // TODO: save bot responses to db and update user with new session and new params
-      for (const messageEvent of messageEvents) {
-        // @ts-ignore
-        const botEvent = await dataProvider.saveEvent({
-          ...messageEvent,
-          userId,
-          eventId: ulid(),
-          createdAt: new Date().toISOString(),
-          from: MessageEventFrom.BOT,
-          ack: MessageEventAck.SENT,
-        })
-      }
-    }
+    botState.isFirstInteraction = false
 
-    session.is_first_interaction = false
     return {
-      input,
-      response,
-      messageEvents,
-      session,
-      lastRoutePath,
-      dataProvider,
+      input, // Delete
+      response, // xml/rendered react for actions (not needed)
+      messageEvents, // xml to Botonic Events
+      session, // to be output.session
+      botState, // to be output.botState
+      dataProvider, // no need to return it
     }
   }
 }

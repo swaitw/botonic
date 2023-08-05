@@ -2,13 +2,15 @@ import * as aws from '@pulumi/aws'
 import * as pulumi from '@pulumi/pulumi'
 import { join } from 'path'
 
+import { BOT_EXECUTOR_LAMBDA_NAME, SENDER_LAMBDA_NAME } from '../constants'
 import {
-  BOT_EXECUTOR_LAMBDA_NAME,
-  getProjectStackNamePrefix,
-  HANDLERS_PATH,
-  SENDER_LAMBDA_NAME,
-} from '..'
-import { ProgramConfig } from '../pulumi-runner'
+  getHandlersPath,
+  getNlpModelsPath,
+  getPathToWebchatContents,
+  getRestServerPath,
+  getWebsocketServerPath,
+} from '../paths'
+import { getProjectStackNamePrefix, ProgramConfig } from '../pulumi'
 import { AWSProvider, getAwsProviderConfig } from '.'
 import { DynamoDB } from './dynamodb'
 import { NLPModelsBucket } from './nlp-models-bucket'
@@ -37,7 +39,12 @@ export const deployBackendStack = async (
 
   const awsResourceOptions = { provider: awsProvider, parent: awsProvider }
 
-  const nlpModelsBucket = new NLPModelsBucket({}, awsResourceOptions)
+  const workingDirectory = config.workingDirectory as string
+
+  const nlpModelsBucket = new NLPModelsBucket(
+    { nlpModelsPath: getNlpModelsPath(workingDirectory) },
+    awsResourceOptions
+  )
 
   const database = new DynamoDB(
     { tableName: config.tableName },
@@ -54,20 +61,33 @@ export const deployBackendStack = async (
   )
 
   const websocketServer = new WebSocketServer(
-    { database, nlpModelsBucket, dynamodbCrudPolicy: DYNAMODB_CRUD_POLICY },
+    {
+      websocketLambdaPath: getWebsocketServerPath(workingDirectory),
+      database,
+      nlpModelsBucket,
+      dynamodbCrudPolicy: DYNAMODB_CRUD_POLICY,
+    },
     {
       ...awsResourceOptions,
       dependsOn: [nlpModelsBucket, database],
     }
   )
 
+  const senderLambdaPath = join(
+    getHandlersPath(workingDirectory),
+    SENDER_LAMBDA_NAME
+  )
   const sender = new SQSLambdaMapping(
     {
       lambdaName: SENDER_LAMBDA_NAME,
       queueName: `${SENDER_LAMBDA_NAME}-queue`,
-      sqsLambdaPath: join(HANDLERS_PATH, SENDER_LAMBDA_NAME),
+      sqsLambdaPath: senderLambdaPath,
       handler: 'index.default',
       inlinePolicies: [
+        {
+          name: `${SENDER_LAMBDA_NAME}-dynamodb-crud-inline-policy`,
+          policy: DYNAMODB_CRUD_POLICY,
+        },
         {
           name: `${SENDER_LAMBDA_NAME}-execute-connections`,
           policy: websocketServer.manageConnectionsPolicy,
@@ -75,16 +95,21 @@ export const deployBackendStack = async (
       ],
       environmentVariables: {
         WEBSOCKET_URL: websocketServer.url,
+        DATA_PROVIDER_URL: database.url,
       },
     },
     awsResourceOptions
   )
 
+  const botExecutorLambdaPath = join(
+    getHandlersPath(workingDirectory),
+    BOT_EXECUTOR_LAMBDA_NAME
+  )
   const botExecutor = new SQSLambdaMapping(
     {
       lambdaName: BOT_EXECUTOR_LAMBDA_NAME,
       queueName: `${BOT_EXECUTOR_LAMBDA_NAME}-queue`,
-      sqsLambdaPath: join(HANDLERS_PATH, BOT_EXECUTOR_LAMBDA_NAME),
+      sqsLambdaPath: botExecutorLambdaPath,
       handler: 'index.default',
       inlinePolicies: [
         {
@@ -102,6 +127,7 @@ export const deployBackendStack = async (
 
   const restServer = new RestServer(
     {
+      restServerLambdaPath: getRestServerPath(workingDirectory),
       nlpModelsBucket,
       database,
       dynamodbCrudPolicy: DYNAMODB_CRUD_POLICY,
@@ -139,8 +165,11 @@ export const deployFrontendStack = async (
   ) as AWSProvider
   const awsResourceOptions = { provider: awsProvider, parent: awsProvider }
 
+  const workingDirectory = config.workingDirectory as string
+
   const staticWebchatContents = new StaticWebchatContents(
     {
+      pathToWebchatContents: getPathToWebchatContents(workingDirectory),
       customDomain: config.customDomain,
       nlpModelsUrl: config.nlpModelsUrl,
       apiUrl: config.apiUrl,
@@ -155,4 +184,9 @@ export const deployFrontendStack = async (
     webchatUrl: staticWebchatContents.webchatUrl,
     cloudfrontId: staticWebchatContents.cloudfrontId,
   }
+}
+
+export const deployFullStack = {
+  backend: deployBackendStack,
+  frontend: deployFrontendStack,
 }
